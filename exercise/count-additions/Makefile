@@ -2,7 +2,7 @@ run: test.elf
 	./test.elf
 
 count_additions.so: count_additions.cc
-	clang $(CFLAGS) -shared -fPIC -o $@ $<
+	clang++ $(CXXFLAGS) -shared -fPIC -o $@ $<
 
 test.orig.bc: test.c
 	clang -O0 -emit-llvm -c -o $@ $<
