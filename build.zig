@@ -21,6 +21,8 @@ pub fn build(b: *std.Build) void {
 
     const llvm = b.dependency("llvm", .{});
 
+    const input_file = if (b.args != null and b.args.?.len > 0) b.args.?[0] else "you must specify an input path for the run step";
+
     // NOTE: for some reason, `zig c++` or `zig build-lib` produces a .so file
     // where the callback sent to registerPipelineParsingCallback is not
     // called, so we're manually using clang here instead.
@@ -52,11 +54,13 @@ pub fn build(b: *std.Build) void {
     plugin.addArgs(&.{"-shared", "-fPIC", "-o"});
     const plugin_so = plugin.addOutputFileArg("libdiversification.so");
 
+    b.getInstallStep().dependOn(&b.addInstallFile(plugin_so, "libdiversification.so").step);
+
     const clang1 = std.Build.Step.Run.create(b, "clang1");
     clang1.addFileArg(llvm.path("bin/clang-21"));
     clang1.addArgs(&.{"-O0", "-emit-llvm", "-c", "-o"});
     const orig_bc = clang1.addOutputFileArg("orig.bc");
-    clang1.addArg("./exercise/count-additions/test.c");
+    clang1.addArg(input_file);
 
     const opt = std.Build.Step.Run.create(b, "opt");
     opt.addFileArg(llvm.path("bin/opt"));
@@ -72,11 +76,9 @@ pub fn build(b: *std.Build) void {
     const clang2 = std.Build.Step.Run.create(b, "clang2");
     clang2.addFileArg(llvm.path("bin/clang-21"));
     clang2.addArg("-o");
-    const done_file = clang2.addOutputFileArg("transformed.elf");
+    const transformed_elf = clang2.addOutputFileArg("transformed.elf");
     clang2.addFileArg(transformed_bc);
 
-    const transform_step = b.step("run", "Run the transformation passes");
-    transform_step.dependOn(&clang2.step);
-
-    b.getInstallStep().dependOn(&b.addInstallFile(done_file, "bin").step);
+    const run_step = b.step("run", "Run the transformation passes");
+    run_step.dependOn(&b.addInstallFile(transformed_elf, b.fmt("{s}.transformed.elf", .{std.fs.path.stem(input_file)})).step);
 }
