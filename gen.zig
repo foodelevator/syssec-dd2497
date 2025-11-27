@@ -34,6 +34,7 @@ pub fn main() !void {
         \\#include <llvm/IR/Constants.h>
         \\#include <llvm/IR/InstrTypes.h>
         \\#include <llvm/Support/Casting.h>
+        \\#include <iostream>
         \\
         \\using namespace llvm;
         \\
@@ -41,10 +42,10 @@ pub fn main() !void {
     for (passes.items) |pass| {
         try output.print(
             \\
-            \\bool nop_pass(llvm::Module &m);
-            \\struct nop_pass_struct : public llvm::PassInfoMixin<nop_pass_struct> {{
+            \\bool {[0]s}_pass(llvm::Module &m);
+            \\struct {[0]s}_pass_struct : public llvm::PassInfoMixin<{[0]s}_pass_struct> {{
             \\    llvm::PreservedAnalyses run(llvm::Module &m, llvm::ModuleAnalysisManager &) {{
-            \\        bool changed = false; // {[0]s}_pass(m);
+            \\        bool changed = {[0]s}_pass(m);
             \\
             \\        return changed ? llvm::PreservedAnalyses::none() : llvm::PreservedAnalyses::all();
             \\    }}
@@ -58,20 +59,21 @@ pub fn main() !void {
         , .{pass.name});
     }
     try output.writeAll(
+        \\
         \\extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo llvmGetPassPluginInfo() {
         \\    return {
         \\        LLVM_PLUGIN_API_VERSION,
         \\        "diversification",
         \\        LLVM_VERSION_STRING,
-        \\        [](llvm::PassBuilder &PB) {
-        \\            PB.registerPipelineParsingCallback([](StringRef Name, ModulePassManager &MPM, ArrayRef<PassBuilder::PipelineElement>) {
+        \\        [](llvm::PassBuilder &pb) {
+        \\            pb.registerPipelineParsingCallback([](StringRef name, ModulePassManager &mpm, ArrayRef<PassBuilder::PipelineElement>) {
         \\                bool any = false;
         \\
     );
     for (passes.items) |pass| {
         try output.print(
-            \\                if (Name == "{[0]s}") {{
-            \\                    MPM.addPass({[0]s}_pass_struct());
+            \\                if (name == "{[0]s}") {{
+            \\                    mpm.addPass({[0]s}_pass_struct());
             \\                    any = true;
             \\                }}
             \\

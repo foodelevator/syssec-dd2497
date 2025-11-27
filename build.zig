@@ -4,7 +4,12 @@ pub fn build(b: *std.Build) void {
     // const target = b.standardTargetOptions(.{});
     // const optimize = b.standardOptimizeOption(.{});
 
-    const passes: []const []const u8 = &.{ "nop" };
+    // TODO: make it possible to instead specify which passes to include on the command line
+    var passes = std.ArrayList([]const u8).empty;
+    var passes_dir = (b.build_root.handle.openDir("passes", .{ .iterate = true }) catch @panic("Could not open passes directory")).iterate();
+    while (passes_dir.next() catch unreachable) |pass| {
+        passes.append(b.allocator, std.fs.path.stem(pass.name)) catch @panic("OOM");
+    }
 
     const generate_main = b.addExecutable(.{
         .name = "generate_main",
@@ -15,7 +20,7 @@ pub fn build(b: *std.Build) void {
     });
     const run_generate_main = b.addRunArtifact(generate_main);
     const root = run_generate_main.addOutputFileArg("root.cc");
-    for (passes) |pass| {
+    for (passes.items) |pass| {
         run_generate_main.addFileArg(b.path(b.fmt("passes/{s}.cc", .{pass})));
     }
 
@@ -48,27 +53,33 @@ pub fn build(b: *std.Build) void {
     const plugin = std.Build.Step.Run.create(b, "diversification");
     plugin.addFileArg(llvm.path("bin/clang++"));
     plugin.addFileArg(root);
-    for (passes) |pass| {
+    for (passes.items) |pass| {
         plugin.addFileArg(b.path(b.fmt("passes/{s}.cc", .{pass})));
     }
-    plugin.addArgs(&.{"-shared", "-fPIC", "-o"});
+    plugin.addArgs(&.{ "-g", "-shared", "-fPIC", "-o" });
     const plugin_so = plugin.addOutputFileArg("libdiversification.so");
 
     b.getInstallStep().dependOn(&b.addInstallFile(plugin_so, "libdiversification.so").step);
 
     const clang1 = std.Build.Step.Run.create(b, "clang1");
     clang1.addFileArg(llvm.path("bin/clang-21"));
-    clang1.addArgs(&.{"-O0", "-emit-llvm", "-c", "-o"});
+    clang1.addArgs(&.{ "-O0", "-emit-llvm", "-c", "-o" });
     const orig_bc = clang1.addOutputFileArg("orig.bc");
-    clang1.addArg(input_file);
+    clang1.addFileArg(.{ .cwd_relative = input_file });
 
     const opt = std.Build.Step.Run.create(b, "opt");
     opt.addFileArg(llvm.path("bin/opt"));
     opt.addArg("-load-pass-plugin");
     opt.addFileArg(plugin_so);
-    for (passes) |pass| {
-        opt.addArg(b.fmt("-passes={s}", .{pass}));
+    var passes_flag: []const u8 = "-passes=";
+    for (0.., passes.items) |i, pass| {
+        passes_flag = b.fmt("{s}{s}{s}", .{
+            passes_flag,
+            if (i == 0) "" else ",",
+            pass,
+        });
     }
+    opt.addArg(passes_flag);
     opt.addArg("-o");
     const transformed_bc = opt.addOutputFileArg("transformed.bc");
     opt.addFileArg(orig_bc);
