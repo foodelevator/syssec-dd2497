@@ -35,6 +35,7 @@
         .llvm = .{
             .url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.6/LLVM-21.1.6-Linux-X64.tar.xz",
             .hash = "N-V-__8AAP_____PPwNm2tSzz4K65ab7YRDEj3o6kZqsb5Ay",
+            .lazy = true,
         },
     },
     .paths = .{
