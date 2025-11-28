@@ -8,7 +8,7 @@ void pwnme(void) {
 
     setvbuf(stdout, NULL, _IONBF, 0);
 
-    puts("write4 by ROP Emporium");
+    puts("write4");
     puts("x86_64");
 
     memset(buf, 0, sizeof(buf));
