@@ -5,10 +5,11 @@
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/Support/Casting.h>
+#include <random>
 
 using namespace llvm;
 
-bool nop_pass(Module &m) {
+bool nop_pass(Module &m, std::mt19937_64 &gen) {
     auto &ctx = m.getContext();
 
     for (auto &f : m) {

@@ -35,6 +35,7 @@ pub fn main() !void {
         \\#include <llvm/IR/InstrTypes.h>
         \\#include <llvm/Support/Casting.h>
         \\#include <iostream>
+        \\#include <random>
         \\
         \\using namespace llvm;
         \\
@@ -42,10 +43,12 @@ pub fn main() !void {
     for (passes.items) |pass| {
         try output.print(
             \\
-            \\bool {[0]s}_pass(llvm::Module &m);
+            \\bool {[0]s}_pass(llvm::Module &m, std::mt19937_64 &gen);
             \\struct {[0]s}_pass_struct : public llvm::PassInfoMixin<{[0]s}_pass_struct> {{
             \\    llvm::PreservedAnalyses run(llvm::Module &m, llvm::ModuleAnalysisManager &) {{
-            \\        bool changed = {[0]s}_pass(m);
+            \\        std::random_device rd;
+            \\        std::mt19937_64 gen(rd());
+            \\        bool changed = {[0]s}_pass(m, gen);
             \\
             \\        return changed ? llvm::PreservedAnalyses::none() : llvm::PreservedAnalyses::all();
             \\    }}
