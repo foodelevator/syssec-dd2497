@@ -56,6 +56,7 @@ pub fn build(b: *std.Build) void {
     for (passes.items) |pass| {
         plugin.addFileArg(b.path(b.fmt("passes/{s}.cc", .{pass})));
     }
+    plugin.addPrefixedDirectoryArg("-I", llvm.path("include"));
     plugin.addArgs(&.{ "-g", "-shared", "-fPIC", "-o" });
     const plugin_so = plugin.addOutputFileArg("libdiversification.so");
 
