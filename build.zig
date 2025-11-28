@@ -3,14 +3,15 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     // const target = b.standardTargetOptions(.{});
     // const optimize = b.standardOptimizeOption(.{});
-    const llvm_path = b.option([]const u8, "llvm-path", "The path to llvm to link to and use binaries from. Omit to fetch in build script.") orelse null;
-
-    // TODO: make it possible to instead specify which passes to include on the command line
-    var passes = std.ArrayList([]const u8).empty;
-    var passes_dir = (b.build_root.handle.openDir("passes", .{ .iterate = true }) catch @panic("Could not open passes directory")).iterate();
-    while (passes_dir.next() catch unreachable) |pass| {
-        passes.append(b.allocator, std.fs.path.stem(pass.name)) catch @panic("OOM");
-    }
+    const llvm_path = b.option([]const u8, "llvm", "The path to llvm to link to and use binaries from. Omit to fetch in build script.");
+    const passes = b.option([][]const u8, "pass", "Specify to run only specific pass. (Default is to run all). Specify flag multiple times to run multiple.") orelse blk: {
+        var passes = std.ArrayList([]const u8).empty;
+        var passes_dir = (b.build_root.handle.openDir("passes", .{ .iterate = true }) catch @panic("Could not open passes directory")).iterate();
+        while (passes_dir.next() catch unreachable) |pass| {
+            passes.append(b.allocator, std.fs.path.stem(pass.name)) catch @panic("OOM");
+        }
+        break :blk passes.items;
+    };
 
     const generate_main = b.addExecutable(.{
         .name = "generate_main",
@@ -21,7 +22,7 @@ pub fn build(b: *std.Build) void {
     });
     const run_generate_main = b.addRunArtifact(generate_main);
     const root = run_generate_main.addOutputFileArg("root.cc");
-    for (passes.items) |pass| {
+    for (passes) |pass| {
         run_generate_main.addFileArg(b.path(b.fmt("passes/{s}.cc", .{pass})));
     }
 
@@ -52,7 +53,7 @@ pub fn build(b: *std.Build) void {
     const plugin = std.Build.Step.Run.create(b, "diversification");
     plugin.addFileArg(llvm(b, llvm_path, "bin/clang++"));
     plugin.addFileArg(root);
-    for (passes.items) |pass| {
+    for (passes) |pass| {
         plugin.addFileArg(b.path(b.fmt("passes/{s}.cc", .{pass})));
     }
     plugin.addPrefixedDirectoryArg("-I", llvm(b, llvm_path, "include"));
@@ -72,7 +73,7 @@ pub fn build(b: *std.Build) void {
     opt.addArg("-load-pass-plugin");
     opt.addFileArg(plugin_so);
     var passes_flag: []const u8 = "-passes=";
-    for (0.., passes.items) |i, pass| {
+    for (0.., passes) |i, pass| {
         passes_flag = b.fmt("{s}{s}{s}", .{
             passes_flag,
             if (i == 0) "" else ",",

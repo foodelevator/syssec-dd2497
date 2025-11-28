@@ -42,15 +42,22 @@ If we find ourselves with enough time, some additional things we want to impleme
 ### Division of Work
 The various diversification passes are expected to be rather easy to divide, so different group members can focus on different transformations.
 
-## Build System
+## Running the Project
+
+### Dependencies
+
+[Zig](https://ziglang.org) version 0.15.2
+(Optionally) [LLVM](https://www.llvm.org/) version 21
+
+### Build System
 
 The passes in the project are written in C++ but to build and run everything we use the Zig build
 system (as opposed to something more common for C++ like a Makefile or CMake). The build script is
 defined in `build.zig` and `build.zig.zon`. By default, it will automatically download LLVM (which
 can take a while, but it will be cached after the first run), but you can also use an externally
-provided LLVM installed by e.g. your package manager, by providing the flag `-Dllvm-path=...` after
+provided LLVM installed by e.g. your package manager, by providing the flag `-Dllvm=...` after
 `zig build` in any command. On Arch linux, if you have installed the package `llvm` using pacman,
-the correct flag is `-Dllvm-path=/usr` and this is probably true for most linux distributions.
+the correct flag is `-Dllvm=/usr` and this is probably true in most cases.
 
 To compile the project, run `zig build install`. This will create a file called
 `libdiversification.so` in the directory `zig-out/` in the project root. This file can be loaded as
@@ -65,7 +72,15 @@ look at the diff between the original and transformed LLVM IR, you can run somet
 diff <(llvm-dis zig-out/$filename.orig.bc -o -) <(llvm-dis zig-out/$filename.transformed.bc -o -)
 ```
 
-By default all existing passes are included and ran. That should be made customizable.
+Too inspect the assembly of the final binary, you can run
+
+```sh
+objdump -Mintel -d zig-out/$filename.elf
+```
+
+By default all existing passes are included and ran. To only run one or a few, specify the flag
+`-Dpass=NAME` for each pass. The name of the pass is the name of it's source file without the
+extension.
 
 ### Defining a Pass
 
