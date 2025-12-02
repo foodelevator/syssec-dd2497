@@ -42,6 +42,82 @@ If we find ourselves with enough time, some additional things we want to impleme
 ### Division of Work
 The various diversification passes are expected to be rather easy to divide, so different group members can focus on different transformations.
 
+## Passes
+
+### Shadow Stack
+#### A quick note on safety
+A real shadow stack needs OS or hardlevel support. This simply stored the shadow stack as a global variable and is thus not safe (stored in the `.bss` section) as it could be overwritten just as the process stack. However, it does indicate the mechanism of a shadow stack.
+TODO: attack a program even if it employs this unsafe shadow stack.
+
+This pass implements a shadow stack. Prior to every `return`, the return address of the process stack is compared to the return address on the shadow stack. If they do not agree, the process is aborted, otherwise, the program continues as normal. 
+
+The pass does this procedure by creating a **prologue** and an **epilogue**. In the prologue, the return address is pushed to the shadow stack. The epilogue compares the two return addresses. This is most easily manifested with an example.
+
+Assume a simple function:
+```C
+void f(int x) {
+    global_value = x;   
+    return;
+}
+```
+The corresponding IR code with `-O0` optimization level would yield:
+```llvm 
+define dso_local void @f(i32 noundef %0) #0 {
+  %2 = alloca i32, align 4
+  store i32 %0, ptr %2, align 4
+  %3 = load i32, ptr %2, align 4
+  store i32 %3, ptr @global_value, align 4
+  ret void
+}
+```  
+
+With the shadow stack pass, we instead get:
+```llvm
+  7 @shadow_stack = internal global [1024 x ptr] zeroinitializer
+  8 @shadow_sp = internal global i32 0
+  9 
+ 10 ; Function Attrs: noinline nounwind optnone uwtable
+ 11 define dso_local void @f(i32 noundef %0) #0 {
+ 12   %shadow.sp = load i32, ptr @shadow_sp, align 4
+ 13   %shadow.slot = getelementptr inbounds [1024 x ptr], ptr @shadow_stack, i32 0, i32 %shadow.sp
+ 14   %shadow.retaddr = call ptr @llvm.returnaddress(i32 0)
+ 15   store ptr %shadow.retaddr, ptr %shadow.slot, align 8
+ 16   %shadow.sp.next = add i32 %shadow.sp, 1
+ 17   store i32 %shadow.sp.next, ptr @shadow_sp, align 4
+ 18   %2 = alloca i32, align 4
+ 19   store i32 %0, ptr %2, align 4
+ 20   %3 = load i32, ptr %2, align 4
+ 21   store i32 %3, ptr @global_value, align 4
+ 22   br label %shadow.epilogue
+ 23 
+ 24 shadow.epilogue:                                  ; preds = %1
+ 25   %shadow.sp.cur = load i32, ptr @shadow_sp, align 4
+ 26   %shadow.sp.dec = add i32 %shadow.sp.cur, -1
+ 27   store i32 %shadow.sp.dec, ptr @shadow_sp, align 4
+ 28   %shadow.slot2 = getelementptr inbounds [1024 x ptr], ptr @shadow_stack, i32 0, i32 %shadow.sp.dec
+ 29   %shadow.saved_ra = load ptr, ptr %shadow.slot2, align 8
+ 30   %shadow.real_ra = call ptr @llvm.returnaddress(i32 0)
+ 31   %shadow.ok = icmp eq ptr %shadow.saved_ra, %shadow.real_ra
+ 32   br i1 %shadow.ok, label %shadow.ret, label %shadow.trap
+ 33 
+ 34 shadow.trap:                                      ; preds = %shadow.epilogue
+ 35   call void @abort()
+ 36   unreachable
+ 37 
+ 38 shadow.ret:                                       ; preds = %shadow.epilogue
+ 39   ret void
+ 40 }
+```
+
+The shadow stack and the shadow stack pointer are global variables. The prologue can be seen in lines `12-17` of the function body. The 
+return value is fetched with `@llvm.returnaddress` and stored on the shadow stack, after which the stack pointer is incremented. Instead of a `ret void` at line `22`, the function instead branches to the `epilogue`. The return value stored in the `prologue` is loaded into `saved_ra` and the process stack return value is loaded into `real_ra`. A simple `integer compare` is done on these two values. If they agree, the function branches to the `ret` branch. If not, then the function branches to `trap` where `@abort()` is called.
+
+#### Notes on Phi Nodes
+The pass can handle functions with multiple return statements by constructing a PHI node to merge multiple return values into a single unified epilogue.
+However, at optimization level `-O0`, Clang typically does not produce multiple ret instructions for normal C code. Instead, Clang creates a single return block that merges all paths using stack slots and branches. As a result, the epilogue usually has only one predecessor, and so the generated PHI node ends up with only one incoming value.
+
+At higher optimization levels (-O1, -O2, -O3) or for IR not produced directly by Clang, multiple return blocks are more common, and the PHI logic becomes necessary. Thus, for `O0` level, the PHI node solution may seem unnessesary, but does not break functionality (it seems).
+
 ## Running the Project
 
 ### Dependencies
