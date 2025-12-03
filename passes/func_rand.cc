@@ -25,7 +25,7 @@ bool func_rand_pass(Module &M, std::mt19937_64 &gen) {
     Function *Prev = nullptr;
 
     // Insert F from shuffled Funcs into FL
-    for (Function &F : Funcs) {
+    for (Function *F : Funcs) {
         auto FuncIt = F->getIterator(); // Function to be inserted
         if(!Prev) { // Case for the first function in Funcs
             auto InsertPos = FL.begin(); // Insert at the beginning
@@ -34,10 +34,10 @@ bool func_rand_pass(Module &M, std::mt19937_64 &gen) {
         } else { // Case for the other functions
             auto PrevIt = Prev->getIterator(); // Iterator to the previous function in M
             // new insert position is after the previous one
-            prevIt++; 
+            PrevIt++; 
             auto InsertPos = PrevIt;
             FL.splice(InsertPos, FL, FuncIt); // Insert F at position
-            prev = F;
+            Prev = F;
         }
     }
 
