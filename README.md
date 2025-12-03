@@ -46,7 +46,7 @@ The various diversification passes are expected to be rather easy to divide, so 
 
 ### Shadow Stack
 #### A quick note on safety
-A real shadow stack needs OS or hardlevel support. This simply stored the shadow stack as a global variable and is thus not safe (stored in the `.bss` section) as it could be overwritten just as the process stack. However, it does indicate the mechanism of a shadow stack.
+A real shadow stack needs OS or hardware support. This simply stored the shadow stack as a global variable and is thus not safe (stored in the `.bss` section) as it could be overwritten just as the process stack. However, it does indicate the mechanism of a shadow stack.
 TODO: attack a program even if it employs this unsafe shadow stack.
 
 This pass implements a shadow stack. Prior to every `return`, the return address of the process stack is compared to the return address on the shadow stack. If they do not agree, the process is aborted, otherwise, the program continues as normal. 
