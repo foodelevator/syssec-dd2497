@@ -41,8 +41,7 @@ bool func_rand_pass(Module &M, std::mt19937_64 &gen) {
         }
     }
 
-
-
-        
+    changed = true;
+    return changed;
 }
 
