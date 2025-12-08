@@ -49,6 +49,11 @@ bool mayAlias(Instruction *I1, Instruction *I2) {
 }
 
 bool canReorder(Instruction *I1, Instruction *I2) {
+    // Dont reorder alloca instructions - they must stay at block start
+    if (isa<AllocaInst>(I1) || isa<AllocaInst>(I2)) {
+        return false;
+    }
+
     // Dont reorder terminators, returns must be last
     if (I1->isTerminator() || I2->isTerminator()) {
         return false;
