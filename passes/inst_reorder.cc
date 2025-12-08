@@ -22,30 +22,41 @@ bool dependsOn(Instruction *I1, Instruction *I2) {
     return false;
 }
 
-// Check if 2 mem ops might access the same memory location. if unsure, assume they might alias
-bool mayAlias(Instruction *I1, Instruction *I2) {
-    Value *ptr1 = nullptr;
-    Value *ptr2 = nullptr;
+// Get the pointer operand from a memory instruction
+Value* getPointer(Instruction *I) {
+    if (auto *load = dyn_cast<LoadInst>(I)) {
+        return load->getPointerOperand();
+    } else if (auto *store = dyn_cast<StoreInst>(I)) {
+        return store->getPointerOperand();
+    }
+    return nullptr;
+}
+
+// Check if two pointers definitely point to different memory
+bool definitelyDifferentMemory(Value *ptr1, Value *ptr2) {
+    if (!ptr1 || !ptr2) return false;
     
-    // Extract pointer from load/store instructions
-    if (auto *load = dyn_cast<LoadInst>(I1)) {
-        ptr1 = load->getPointerOperand();
-    } else if (auto *store = dyn_cast<StoreInst>(I1)) {
-        ptr1 = store->getPointerOperand();
+    // Same pointer = same memory
+    if (ptr1 == ptr2) return false;
+    
+    // If both are allocas, theyre different stack slots
+    if (isa<AllocaInst>(ptr1) && isa<AllocaInst>(ptr2)) {
+        return true;  // Different allocas = different memory
     }
     
-    if (auto *load = dyn_cast<LoadInst>(I2)) {
-        ptr2 = load->getPointerOperand();
-    } else if (auto *store = dyn_cast<StoreInst>(I2)) {
-        ptr2 = store->getPointerOperand();
+    // If one is alloca and other is global, theyre different
+    if ((isa<AllocaInst>(ptr1) && isa<GlobalVariable>(ptr2)) ||
+        (isa<AllocaInst>(ptr2) && isa<GlobalVariable>(ptr1))) {
+        return true;
     }
     
-    if (ptr1 && ptr2 && ptr1 != ptr2) {
-        return false; // Different addresses, safe to reorder
+    // If both are different globals, theyre different
+    if (isa<GlobalVariable>(ptr1) && isa<GlobalVariable>(ptr2)) {
+        return true;
     }
     
-    // assume they might alias
-    return true;
+    // Otherwise, we cant prove theyre different
+    return false;
 }
 
 bool canReorder(Instruction *I1, Instruction *I2) {
@@ -59,27 +70,49 @@ bool canReorder(Instruction *I1, Instruction *I2) {
         return false;
     }
     
-    // Dont reorder function calls
+    // Dont reorder function calls (they may have side effects)
     if (isa<CallInst>(I1) || isa<CallInst>(I2)) {
         return false;
     }
     
-    // Check mem ops
-    bool I1_mem = I1->mayReadOrWriteMemory();
-    bool I2_mem = I2->mayReadOrWriteMemory();
-    
-    if (I1_mem && I2_mem) {
-        if (mayAlias(I1, I2)) {
-            return false;  // access same memory, dont reorder
-        }
+    // Dont reorder PHI nodes
+    if (isa<PHINode>(I1) || isa<PHINode>(I2)) {
+        return false;
     }
     
-    // Dont reorder if there is a data dependency in either direction
+    // Check for data dependencies
     if (dependsOn(I1, I2) || dependsOn(I2, I1)) {
         return false;
     }
     
-    return true;
+    // Memory dependency checking
+    bool I1_writes = I1->mayWriteToMemory();
+    bool I2_writes = I2->mayWriteToMemory();
+    bool I1_reads = I1->mayReadFromMemory();
+    bool I2_reads = I2->mayReadFromMemory();
+    
+    // If neither accesses memory, safe to reorder
+    if (!I1_writes && !I2_writes && !I1_reads && !I2_reads) {
+        return true;
+    }
+    
+    // If both only read, safe to reorder
+    if (!I1_writes && !I2_writes) {
+        return true;
+    }
+    
+    // At least one writes - need to check if they access different memory
+    Value *ptr1 = getPointer(I1);
+    Value *ptr2 = getPointer(I2);
+    
+    // If we can prove they access different memory, safe to reorder
+    if (definitelyDifferentMemory(ptr1, ptr2)) {
+        return true;
+    }
+    
+    // Otherwise dont reorder
+    // This covers: store-load, load-store, store-store to potentially same memory
+    return false;
 }
 
 bool inst_reorder_pass(Module &M, std::mt19937_64 &gen) {
