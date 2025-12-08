@@ -12,6 +12,8 @@ pub fn build(b: *std.Build) void {
         }
         break :blk passes.items;
     };
+    const clang1args = b.option([][]const u8, "clang1args", "Add arguments to the second (llvm bitcode -> binary) clang invocation") orelse &.{};
+    const clang2args = b.option([][]const u8, "clang2args", "Add arguments to the second (llvm bitcode -> binary) clang invocation") orelse &.{};
 
     const generate_main = b.addExecutable(.{
         .name = "generate_main",
@@ -67,8 +69,11 @@ pub fn build(b: *std.Build) void {
     clang1.addArgs(&.{ "-O0", "-emit-llvm", "-c", "-o" });
     const orig_bc = clang1.addOutputFileArg("orig.bc");
     clang1.addFileArg(.{ .cwd_relative = input_file });
+    clang1.addArgs(clang1args);
 
     const opt = std.Build.Step.Run.create(b, "opt");
+    // prevent running opt from being cached, since the seed will (probably) be different each time
+    opt.has_side_effects = true;
     opt.addFileArg(llvm(b, llvm_path, "bin/opt"));
     opt.addArg("-load-pass-plugin");
     opt.addFileArg(plugin_so);
@@ -90,6 +95,7 @@ pub fn build(b: *std.Build) void {
     clang2.addArg("-o");
     const transformed_elf = clang2.addOutputFileArg("transformed.elf");
     clang2.addFileArg(transformed_bc);
+    clang2.addArgs(clang2args);
 
     const run_step = b.step("run", "Run the transformation passes");
     run_step.dependOn(&b.addInstallFile(orig_bc, b.fmt("{s}.orig.bc", .{std.fs.path.stem(input_file)})).step);
