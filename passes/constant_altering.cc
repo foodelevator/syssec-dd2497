@@ -17,10 +17,14 @@ bool constant_altering_pass(Module &m, std::mt19937_64 &gen) {
 
         for (auto &bb : f) {
             for (auto &inst : bb) {
+                // SKIP switch instructions, too agressive
+                if (isa<SwitchInst>(&inst)) continue;
+                
                 auto b = IRBuilder(&inst);
-                for (int i = 0; i < inst.getNumOperands(); i++) {
+                for (unsigned i = 0; i < inst.getNumOperands(); i++) {
                     auto *op = dyn_cast<ConstantInt>(inst.getOperand(i));
                     if (!op || op->getValue().getSignificantBits() > 64) continue;
+                    // Skip if this operand is used as a switch case value                    
                     auto val = op->getSExtValue();
                     uint64_t random = gen();
                     auto *newOp = b.Insert(BinaryOperator::CreateXor(
