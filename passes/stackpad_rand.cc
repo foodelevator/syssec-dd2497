@@ -29,16 +29,23 @@ bool stackpad_rand_pass(Module &M, std::mt19937_64 &gen) {
         // Find insertion place after existing allocas (if there are any)
         // but before the first non-alloca instruction.
         Instruction *InsertPt = nullptr;
+        // Look for the first alloca in the entry block
         for (Instruction &I : Entry) {
-            if (!isa<AllocaInst>(&I)) {
+            if (isa<AllocaInst>(&I)) {
                 InsertPt = &I;
                 break;
             }
         }
-
-        // Edge case if all instructions are allocas
+          
         if (!InsertPt) {
-            InsertPt = Entry.getTerminator();
+        // No allocas at all: insert at the first real instruction in the block
+        // (or fallback to terminator if the block is weirdly empty)
+            auto FI = Entry.getFirstInsertionPt();
+            if (FI != Entry.end()) {
+                InsertPt = &*FI;
+            } else {
+                InsertPt = Entry.getTerminator();
+            }
         }
 
         IRBuilder<> B(InsertPt);
