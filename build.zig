@@ -12,7 +12,8 @@ pub fn build(b: *std.Build) void {
         }
         break :blk passes.items;
     };
-    const clang1args = b.option([][]const u8, "clang1args", "Add arguments to the second (llvm bitcode -> binary) clang invocation") orelse &.{};
+    const clang1args = b.option([][]const u8, "clang1args", "Add arguments to the first (source code -> llvm bitcode) clang invocation") orelse &.{};
+    const opt_args = b.option([][]const u8, "opt_args", "Add arguments to the opt invocation") orelse &.{};
     const clang2args = b.option([][]const u8, "clang2args", "Add arguments to the second (llvm bitcode -> binary) clang invocation") orelse &.{};
 
     const generate_main = b.addExecutable(.{
@@ -89,6 +90,7 @@ pub fn build(b: *std.Build) void {
     opt.addArg("-o");
     const transformed_bc = opt.addOutputFileArg("transformed.bc");
     opt.addFileArg(orig_bc);
+    opt.addArgs(opt_args);
 
     const clang2 = std.Build.Step.Run.create(b, "clang2");
     clang2.addFileArg(llvm(b, llvm_path, "bin/clang"));

