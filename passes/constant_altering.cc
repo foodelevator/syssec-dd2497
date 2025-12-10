@@ -4,10 +4,21 @@
 #include "llvm/Pass.h"
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/InstrTypes.h>
+#include <llvm/IR/InlineAsm.h>
 #include <llvm/Support/Casting.h>
 #include <random>
 
 using namespace llvm;
+
+Value *blackbox(IRBuilder<> &b, Constant *v) {
+    // FunctionType *fty = FunctionType::get(v->getType(), {v->getType()}, false);
+    // InlineAsm *ia = InlineAsm::get(fty, "", "={r},0", true);
+    // return b.CreateCall(ia, {v});
+
+    auto *tmp = b.CreateAlloca(v->getType(), nullptr);
+    b.CreateStore(v, tmp);
+    return b.CreateLoad(v->getType(), tmp);
+}
 
 bool constant_altering_pass(Module &m, std::mt19937_64 &gen) {
     auto &ctx = m.getContext();
@@ -39,7 +50,7 @@ bool constant_altering_pass(Module &m, std::mt19937_64 &gen) {
                     auto val = op->getSExtValue();
                     uint64_t random = gen();
                     auto *newOp = b.Insert(BinaryOperator::CreateXor(
-                        ConstantInt::get(op->getType(), val ^ random),
+                        blackbox(b, ConstantInt::get(op->getType(), val ^ random)),
                         ConstantInt::get(op->getType(), random)
                     ));
                     inst.replaceUsesOfWith(op, newOp);
