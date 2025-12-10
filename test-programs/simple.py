@@ -5,11 +5,12 @@ except:
     def tqdm(iter):
         return iter
 
-context.binary = elf = ELF("./simple")
+context.binary = elf = ELF(args.BINARY or "./simple")
 context.log_level = "warning"
 
 io = process()
-# gdb.attach(io.pid)
+if args.DBG:
+    gdb.attach(io.pid)
 io.sendlineafter(b"? ", b"r")
 io.sendlineafter(b"? ", b"512") # 512 < 0x256
 
