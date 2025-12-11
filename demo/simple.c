@@ -31,19 +31,14 @@ void win(uint64_t a, uint32_t b) {
     exit(0);
 }
 
-size_t very_important_function_that_is_definitely_needed_to_make_this_program_work(size_t seed) {
-    size_t a = seed + 50014;
-    size_t b = seed + 50015;
-    size_t c = seed + 3;
-    size_t d = seed + 4;
-    size_t e = seed + 5;
-    size_t f = seed + 6;
-    size_t g = seed + 7;
-
-    a += b;
-    c ^= d;
-    e = (e << 7) | (e >> (64 - 7));
-    f *= 9;
-
-    return a ^ b ^ c ^ d ^ e ^ f ^ g;
+void typical_optimized_function_epilogue() {
+    asm volatile (
+        ".intel_syntax noprefix\n"
+        "pop r12\n"
+        "pop r13\n"
+        "pop r14\n"
+        "pop r15\n"
+        "pop rbp\n"
+        "ret\n"
+    );
 }
