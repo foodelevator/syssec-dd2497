@@ -1,6 +1,3 @@
-// Compile using:
-// clang -O3 -o simple simple.c
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -26,7 +23,7 @@ int main() {
 
 void win(uint64_t a, uint32_t b) {
     char *flag = getenv("FLAG");
-    if (!flag) flag = "Did not find a flag :(";
+    if (!flag) flag = "You have won. Very congrats.";
     if (a == 123 && b == 321) puts(flag);
     exit(0);
 }
