@@ -131,9 +131,11 @@ The passes in the project are written in C++ but to build and run everything we 
 system (as opposed to something more common for C++ like a Makefile or CMake). The build script is
 defined in `build.zig` and `build.zig.zon`. By default, it will automatically download LLVM (which
 can take a while, but it will be cached after the first run), but you can also use an externally
-provided LLVM installed by e.g. your package manager, by providing the flag `-Dllvm=...` after
-`zig build` in any command. On Arch linux, if you have installed the package `llvm` using pacman,
-the correct flag is `-Dllvm=/usr` and this is probably true in most cases.
+provided LLVM installed by e.g. your package manager, by providing the flag `-Dllvm=...` after `zig
+build` in any command. On Arch linux, if you have installed the packages `llvm` and `clang` using
+pacman, the correct flag is `-Dllvm=/usr`. If you have installed a specific version, e.g. with
+packages named `llvm-X` and `clang-X` for some version X, the correct flag is usually
+`-Dllvm=/usr/lib/llvmX`.
 
 To compile the project, run `zig build install`. This will create a file called
 `libdiversification.so` in the directory `zig-out/` in the project root. This file can be loaded as
@@ -160,5 +162,5 @@ extension.
 
 ### Defining a Pass
 
-Create a file in `passes/` named after you pass, ending with `.cc`. If it is named `very_cool.cc`,
+Create a file in `passes/` named after the pass, ending with `.cc`. If it is named `very_cool.cc`,
 it should contain a function with the signature `bool very_cool_pass(Module &m, std::mt19937_64 &gen)`.
