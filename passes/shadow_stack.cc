@@ -56,7 +56,7 @@ static GlobalVariable *createShadowStack(Module &M) {
 
 /**
 Helper
-Get *Function corresponding to the returnaddress intrinsic. 
+Get *Function corresponding to the returnaddress intrinsic.
 corresponding to:
 declare i8* @llvm.returnaddress(i32)
 **/
@@ -64,7 +64,7 @@ static Function *getReturnAddress(Module &M) {
     return Intrinsic::getDeclaration(&M, Intrinsic::returnaddress);
 }
 
-// Helper: abort() 
+// Helper: abort()
 static FunctionCallee getAbortFn(Module &M) {
     LLVMContext &Ctxt = M.getContext();
     Type *voidType = Type::getVoidTy(Ctxt);
@@ -86,11 +86,11 @@ bool shadow_stack_pass(Module &M, std::mt19937_64 &gen) {
 
     // Return pointer to the stack type ie. [1024 x i8*]
     auto *stackType = cast<ArrayType>(shadowStackGV->getValueType());
-    
+
     bool changed = false;
 
     for (Function &F : M) {
-        if (F.isDeclaration()) 
+        if (F.isDeclaration())
             continue;
 
         if (F.getName() == "abort")
@@ -101,13 +101,13 @@ bool shadow_stack_pass(Module &M, std::mt19937_64 &gen) {
             BasicBlock &EntryBB = F.getEntryBlock(); // Get first block of each function
             IRBuilder<> B(&*EntryBB.getFirstInsertionPt()); // Create builder at first insertion point of EntryBB
             // Create a load of the shadow_sp value from memory so we know where to push
-            Value *sp = B.CreateLoad(i32Type, shadowSPGV, "shadow.sp"); 
+            Value *sp = B.CreateLoad(i32Type, shadowSPGV, "shadow.sp");
             // Create pointer (slotPtr) to shadow_stack[sp]
             Value *zero = B.getInt32(0);
             Value *indices[] = {zero, sp};
             Value *slotPtr = B.CreateInBoundsGEP(stackType, shadowStackGV, indices, "shadow.slot");
-            
-            // Store function return address as: retaddr = llvm.returnaddress(0)  
+
+            // Store function return address as: retaddr = llvm.returnaddress(0)
             Value *zeroForRA = B.getInt32(0); // Zero for current function's return address
             Value *retaddr = B.CreateCall(retAddrFn, {zeroForRA}, "shadow.retaddr");
 
@@ -137,7 +137,7 @@ bool shadow_stack_pass(Module &M, std::mt19937_64 &gen) {
         BasicBlock *retBB      = BasicBlock::Create(Ctxt, "shadow.ret", &F);
 
         IRBuilder<> EpilogueB(epilogueBB); // Set IR Builder at epilogueBB
-        
+
         /* ########################################################## */
         // If we have non-void returns (ie returns with an arg) we need
         // a phi block to merge
@@ -150,7 +150,7 @@ bool shadow_stack_pass(Module &M, std::mt19937_64 &gen) {
         /* ######################################################### */
 
 
-        // Pop, decrement, compute return address  
+        // Pop, decrement, compute return address
         // sp.cur = shadow_sp
         Value *spCur = EpilogueB.CreateLoad(i32Type, shadowSPGV, "shadow.sp.cur");
         // sp.dec = sp.cur - 1
@@ -179,7 +179,7 @@ bool shadow_stack_pass(Module &M, std::mt19937_64 &gen) {
             RetB.CreateRet(retValPhi); // ret i32 %shadow.retval
         }
 
-        // trapBB abort if mismatch 
+        // trapBB abort if mismatch
         IRBuilder<> TrapB(trapBB);
         TrapB.CreateCall(abortFn);
         TrapB.CreateUnreachable();
@@ -187,12 +187,12 @@ bool shadow_stack_pass(Module &M, std::mt19937_64 &gen) {
         for (ReturnInst *Ret : returns) {
             IRBuilder<> B(Ret);
             if (retValPhi) { // We have a PHI ie non-void returning function
-                Value *retVal = Ret->getReturnValue();    // the SSA value returned by this ret               
+                Value *retVal = Ret->getReturnValue();    // the SSA value returned by this ret
                 BasicBlock *retParentBB = Ret->getParent();     // the block that contained the ret
                 // Ensure this return has a value (some return instr has no op). Insert in PHI.
                 if (retVal) { retValPhi->addIncoming(retVal, retParentBB); }
             }
-            
+
 
             // Replace "ret" with a branch to the epilogue.
             B.CreateBr(epilogueBB);

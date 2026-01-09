@@ -36,7 +36,7 @@ bool bbrand_pass(Module &M, std::mt19937_64 &gen) {
         if (Blocks.size() <= 1)
             continue;
 
-        // Use the RNG 
+        // Use the RNG
         std::shuffle(Blocks.begin(), Blocks.end(), gen);
 
         // Reorder blocks: Entry stays first and then shuffled blocks

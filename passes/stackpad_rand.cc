@@ -36,7 +36,7 @@ bool stackpad_rand_pass(Module &M, std::mt19937_64 &gen) {
                 break;
             }
         }
-          
+
         if (!InsertPt) {
         // No allocas at all: insert at the first real instruction in the block
         // (or fallback to terminator if the block is weirdly empty)

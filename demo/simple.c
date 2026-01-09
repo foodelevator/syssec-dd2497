@@ -14,9 +14,9 @@ int main() {
         printf("how much? ");
         size_t n; scanf("%zu", &n);
         if (n > 0x256) break;
-        if (c == 'r') 
+        if (c == 'r')
             write(STDOUT_FILENO, buf, n);
-        else 
+        else
             read(STDIN_FILENO, buf, n);
     }
 }

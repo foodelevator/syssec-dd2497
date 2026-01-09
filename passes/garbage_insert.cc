@@ -11,33 +11,33 @@ using namespace llvm;
   pollutes the code with fake operations
   makes ROP gadget hunting harder.
  */
- 
+
 
 bool garbage_insert_pass(Module &M, std::mt19937_64 &gen) {
     bool modified = false;
-    
+
     std::uniform_int_distribution<> insertChance(0, 99);
     int insertProbability = 30;  // 30% chance to insert garbage after each instruction
-    
+
     std::uniform_int_distribution<> randomValue(1, 100); // Random values for garbage
     std::uniform_int_distribution<> patternChoice(0, 4); // garbage pattern
-    
+
     for (auto &F : M) {
         if (F.isDeclaration()) continue;
-        
+
         for (auto &BB : F) {
             // Collect (instruction, baseValue) pairs
             std::vector<std::pair<Instruction*, Value*>> insertionPoints;
-            
+
             // Track which integer values are available
             std::vector<Value*> availableValues;
-            
+
             for (auto &I : BB) {
                 // Dont insert after terminators, PHI nodes, alloca
                 if (I.isTerminator()) continue; // must be last
                 if (isa<PHINode>(&I)) continue; // must be first
                 if (isa<AllocaInst>(&I)) continue; // stack alloc must be at start
-                
+
                 // chance to insert garbage after this instruction
                 if (insertChance(gen) < insertProbability && !availableValues.empty()) {
                     // random available value to use, picks one at random
@@ -45,13 +45,13 @@ bool garbage_insert_pass(Module &M, std::mt19937_64 &gen) {
                     Value *baseValue = availableValues[valuePick(gen)];
                     insertionPoints.push_back({&I, baseValue}); //stores where to insert and the value
                 }
-                
+
                 // If instruction produces an integer, add it to available values
                 if (I.getType()->isIntegerTy()) {
                     availableValues.push_back(&I);
                 }
             }
-            
+
             // Insert garbage at collected points
             for (auto &[insertAfter, baseValue] : insertionPoints) {
                 // we will insert before the next instruction
@@ -63,14 +63,14 @@ bool garbage_insert_pass(Module &M, std::mt19937_64 &gen) {
                 */
                 auto nextIt = std::next(insertAfter->getIterator());
                 if (nextIt == BB.end()) continue; //if nothing, skip
-                
+
                 Instruction *insertBefore = &*nextIt;
                 IRBuilder<> builder(insertBefore);
-                
+
                 Type *intTy = baseValue->getType();
                 int randVal = randomValue(gen);
                 int pattern = patternChoice(gen);
-                
+
                 switch (pattern) {
                     case 0: {
                         // x + n - n, just creates instructions
@@ -91,7 +91,7 @@ bool garbage_insert_pass(Module &M, std::mt19937_64 &gen) {
                         break;
                     }
                     case 3: {
-                        // x | 0 
+                        // x | 0
                         builder.CreateOr(baseValue, ConstantInt::get(intTy, 0), "");
                         break;
                     }
@@ -101,11 +101,11 @@ bool garbage_insert_pass(Module &M, std::mt19937_64 &gen) {
                         break;
                     }
                 }
-                
+
                 modified = true;
             }
         }
     }
-    
+
     return modified;
 }
