@@ -1,0 +1,49 @@
+//=======================\\
+|| Required dependencies ||
+\\=======================//
+
+We have only tested the project on ubuntu and archlinux, but it should probably work on other linux
+distributions and hopefully on macOS (although the project might not be set up for
+cross-compilation, so it may or may not work on aarch64).
+
+First, the zig toolchain at version 0.15.2 must be installed. It can be downloaded from
+https://ziglang.org/download/#release-0.15.2 and extracted anywhere (if you specify the whole path
+to the binary), or downloaded using a package manager.
+
+LLVM (both libraries and binaries) and clang must also be installed. We have tested the project
+using version 18 (because ubuntu...) and 21 (the latest) (where we get some deprecation warnings).
+We did set up the zig build system to download this automatically, but there was something
+suspiciously wrong with that version which affected our tests, so it is advised to not use that
+(i.e., never run `zig build` without specifying `-Dllvm=...`).
+
+//=========\\
+|| Running ||
+\\=========//
+
+To compile and run our passes, execute:
+
+```
+zig build run -Dllvm=$LLVM \
+    -Dpass=bbrand \
+    -Dpass=func_rand \
+    -Dpass=stack_reorder \
+    -Dpass=stackpad_rand \
+    -Dpass=inst_reorder \
+    -Dpass=inst_sub \
+    -Dpass=garbage_insert \
+    -Dpass=constant_altering \
+    -- demo/simple.c
+```
+
+where $LLVM should point to the llvm installation. This might be something like `/usr` or
+`/usr/lib/llvm21`. You can find this by running `which opt` and removing the trailing `/bin/opt`.
+The program compiled from `demo/simple.c`, processed by our passes should then be located at
+`./zig-out/simple.elf`.
+
+//=========\\
+|| Testing ||
+\\=========//
+
+A slightly more comprehensive test, which we showed at the end of our presentation is available at
+`demo/README.txt`, where we showed that applying some and then most of our passes required more
+complicated scripts to exploit which also required to read the exact targeted binary.
