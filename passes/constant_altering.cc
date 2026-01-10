@@ -28,19 +28,23 @@ bool constant_altering_pass(Module &m, std::mt19937_64 &gen) {
 
         for (auto &bb : f) {
             for (auto &inst : bb) {
-                // Skip switch instructions
+                // It would be great to just check if an operand must be a constant or may be a
+                // (dynamically computed) value, but that doesn't seem possible so instead we
+                // hard-code the types of instructions we know must have constant inputs. Some
+                // instructions may require some but not all operands to be constant, so this
+                // solution is not amazing.
                 if (isa<SwitchInst>(&inst)) continue;
-
-                // Skip alloca instructions - don't mess with stack allocation sizes
                 if (isa<AllocaInst>(&inst)) continue;
-
-                // Skip intrinsic calls - they often require immediate constants
+                if (isa<PHINode>(&inst)) continue;
+                if (isa<GetElementPtrInst>(&inst)) continue;
                 if (auto *CI = dyn_cast<CallInst>(&inst)) {
                     if (CI->getCalledFunction() &&
                         CI->getCalledFunction()->isIntrinsic()) {
                         continue;
                     }
                 }
+
+
 
                 auto b = IRBuilder(&inst);
                 for (unsigned i = 0; i < inst.getNumOperands(); i++) {
