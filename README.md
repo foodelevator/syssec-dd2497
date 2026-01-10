@@ -195,6 +195,8 @@ zig build run -Dllvm=/usr \
     -Dpass=bbrand \
     -Dpass=inst_sub \
     -Dpass=garbage_insert \
+    -Dpass=loop_flatten \
+    -Dpass=loop_split \
     -- ./tigerbeetle/zig-out/bin/tigerbeetle.ll
 ```
 For some reason, we were not able to compile the transformed bitcode file unless first disassembling
