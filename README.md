@@ -164,3 +164,64 @@ extension.
 
 Create a file in `passes/` named after the pass, ending with `.cc`. If it is named `very_cool.cc`,
 it should contain a function with the signature `bool very_cool_pass(Module &m, std::mt19937_64 &gen)`.
+
+## Correctness testing
+
+To test that our passes do not break the functionality of programs, we have tried to compile a
+bigger open source project, as our small C example files do not contain a very wide variety of
+functionality that exists in LLVM IR. Specifically, we tried this on a project written in Zig
+(without any dependencies on C libraries), since that gives us one big LLVM IR file to transform,
+rather than a bunch of small ones as we would with C(++) or Rust. Specifically, we found
+[tigerbeetle](https://github.com/tigerbeetle/tigerbeetle.git), which has ~100 000 lines of code. To
+reproduce the test, run the following commands:
+
+```sh
+git clone https://github.com/tigerbeetle/tigerbeetle.git --revision=b6d541562290f23c10760ea20b559cf21b9010b0
+cd tigerbeetle
+```
+TigerBeetle is, unlike our project, on version 0.14.1. Specifying the version like this requires
+using [anyzig](https://github.com/marler8997/anyzig).
+```sh
+zig 0.14.1 build -Demit-llvm-ir
+cd ..
+```
+The build script will try to compile the transformed LLVM IR using clang, which will not work and
+result in a bunch of error logs, but that can safely be ignored since the transformed bitcode file
+will be in the output directory.
+```sh
+zig build run -Dllvm=/usr \
+    -Dpass=func_rand \
+    -Dpass=stack_reorder \
+    -Dpass=bbrand \
+    -Dpass=inst_sub \
+    -Dpass=garbage_insert \
+    -Dpass=loop_flatten \
+    -Dpass=loop_split \
+    -- ./tigerbeetle/zig-out/bin/tigerbeetle.ll
+```
+For some reason, we were not able to compile the transformed bitcode file unless first disassembling
+it to a .ll file.
+```sh
+llvm-dis zig-out/tigerbeetle.transformed.bc
+zig build-exe zig-out/tigerbeetle.transformed.ll
+```
+
+`tigerbeetle.transformed` will now contain the TigerBeetle program with our transformations applied.
+We can test that it works using:
+```sh
+./tigerbeetle.transformed format --cluster=0 --replica-count=3 --development --replica=0 ./0_0.tigerbeetle
+./tigerbeetle.transformed format --cluster=0 --replica-count=3 --development --replica=1 ./0_1.tigerbeetle
+./tigerbeetle.transformed format --cluster=0 --replica-count=3 --development --replica=2 ./0_2.tigerbeetle
+
+./tigerbeetle.transformed start --addresses=3000,3001,3002 --development ./0_0.tigerbeetle &
+./tigerbeetle.transformed start --addresses=3000,3001,3002 --development ./0_1.tigerbeetle &
+./tigerbeetle.transformed start --addresses=3000,3001,3002 --development ./0_2.tigerbeetle &
+
+./tigerbeetle.transformed repl --cluster=0 --addresses=3000,3001,3002
+```
+And interacting with the repl as described at <https://docs.tigerbeetle.com/start/>.
+
+Which works as expected. 🥳
+
+Note that the invocation of our passes above does not include all passes, since there seems to be
+bugs in some passes we have not yet been able to fix.
