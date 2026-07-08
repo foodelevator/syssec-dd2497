@@ -18,7 +18,7 @@ bool roll_30_percent(std::mt19937_64 &gen) {
     return n(gen) < 30;
 }
 
-bool my_loop_flatten_pass(Module &Module, std::mt19937_64 &gen) { // M is used for inner loop's bound
+bool new_loop_flatten_pass(Module &Module, std::mt19937_64 &gen) { // M is used for inner loop's bound
     bool modified = false;
 
     for (Function &F : Module) {
@@ -111,7 +111,7 @@ bool my_loop_flatten_pass(Module &Module, std::mt19937_64 &gen) { // M is used f
             // https://medium.com/@samarth.colleges/data-structure-and-iterator-kung-fu-in-llvm-42aa9657ff47
             for (Use &U : make_early_inc_range(outerPhi->uses())) {  // for every occurrence (use) of outerPhi:
                 Instruction *user = cast<Instruction>(U.getUser());  // if the inst using outerPhi
-                if (user == outerCmp || user == outerIncr) continue; // is NOT the header or latch
+                if (user == outerCmp || user == outerIncr || user == cast<Instruction>(iVal) || user == cast<Instruction>(jVal)) continue; // is NOT the header or latch
                 U.set(iVal);                                         // replace occurrence
             }
 

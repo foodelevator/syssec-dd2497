@@ -67,7 +67,10 @@ pub fn build(b: *std.Build) void {
 
     const clang1 = std.Build.Step.Run.create(b, "clang1");
     clang1.addFileArg(llvm(b, llvm_path, "bin/clang"));
-    clang1.addArgs(&.{ "-O0", "-emit-llvm", "-c", "-o" });
+    // -disable-O0-optnone: without it, clang tags every function "optnone", which makes
+    // opt skip mem2reg (and everything else) on them, so loop counters stay in alloca/load/store
+    // form and never become PHI nodes that the loop passes need.
+    clang1.addArgs(&.{ "-O0", "-Xclang", "-disable-O0-optnone", "-emit-llvm", "-c", "-o" });
     const orig_bc = clang1.addOutputFileArg("orig.bc");
     clang1.addFileArg(.{ .cwd_relative = input_file });
     clang1.addArgs(clang1args);
@@ -78,13 +81,11 @@ pub fn build(b: *std.Build) void {
     opt.addFileArg(llvm(b, llvm_path, "bin/opt"));
     opt.addArg("-load-pass-plugin");
     opt.addFileArg(plugin_so);
-    var passes_flag: []const u8 = "-passes=";
-    for (0.., passes) |i, pass| {
-        passes_flag = b.fmt("{s}{s}{s}", .{
-            passes_flag,
-            if (i == 0) "" else ",",
-            pass,
-        });
+    // run mem2reg first so loop counters end up as PHI nodes instead of alloca/load/store,
+    // which is what the loop passes below actually look for.
+    var passes_flag: []const u8 = "-passes=function(mem2reg)";
+    for (passes) |pass| {
+        passes_flag = b.fmt("{s},{s}", .{ passes_flag, pass });
     }
     opt.addArg(passes_flag);
     opt.addArg("-o");

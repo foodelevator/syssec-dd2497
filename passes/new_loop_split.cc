@@ -23,7 +23,7 @@ bool roll_75_percent(std::mt19937_64 &gen) {
     return n(gen) < 75;
 }
 
-bool my_loop_flatten_pass(Module &M, std::mt19937_64 &gen) {
+bool new_loop_split_pass(Module &M, std::mt19937_64 &gen) {
     bool modified = false;
 
     // get context for creating IR elements
@@ -116,8 +116,8 @@ bool my_loop_flatten_pass(Module &M, std::mt19937_64 &gen) {
             // like in do-while loops, but we ignore those for simplicity
             if (loopComparison->getParent() != header) continue;
             // SLT = signed less than, ULT = unsigned ...
-            if (loopComparison->getPredicate() == ICmpInst::ICMP_SLT ||
-                loopComparison->getPredicate() == ICmpInst::ICMP_ULT ) continue;
+            if (loopComparison->getPredicate() != ICmpInst::ICMP_SLT &&
+                loopComparison->getPredicate() != ICmpInst::ICMP_ULT ) continue;
 
             // find the loop bound (N in i<N)
             // ...assuming the comparison IS actually in the form of i < N
